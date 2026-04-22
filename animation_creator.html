@@ -147,6 +147,7 @@ Comfort,4.2</textarea>
 
     let startTime = performance.now();
     let paused = false;
+    let pausedAt = null;
 
     function clamp(value, min, max) {
       return Math.min(max, Math.max(min, value));
@@ -244,8 +245,14 @@ Comfort,4.2</textarea>
     document.getElementById('pause').addEventListener('click', (event) => {
       paused = !paused;
       event.currentTarget.textContent = paused ? 'Resume' : 'Pause';
+      if (paused) {
+        pausedAt = performance.now();
+      }
       if (!paused) {
-        startTime = performance.now();
+        if (pausedAt !== null) {
+          startTime += performance.now() - pausedAt;
+          pausedAt = null;
+        }
         requestAnimationFrame(draw);
       }
     });
