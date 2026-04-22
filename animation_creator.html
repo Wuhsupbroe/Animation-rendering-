@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Animation Creator</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: Arial, sans-serif;
+    }
+
+    body {
+      margin: 0;
+      padding: 1rem;
+      background: #f5f5f5;
+      color: #111;
+    }
+
+    .layout {
+      display: grid;
+      gap: 1rem;
+      grid-template-columns: minmax(250px, 320px) minmax(320px, 1fr);
+      align-items: start;
+    }
+
+    .panel {
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 1rem;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+      align-items: center;
+    }
+
+    .row input,
+    .row textarea {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 0.5rem;
+      border: 1px solid #bbb;
+      border-radius: 6px;
+    }
+
+    .row textarea {
+      min-height: 110px;
+      resize: vertical;
+    }
+
+    button {
+      border: 1px solid #246;
+      background: #357;
+      color: #fff;
+      border-radius: 6px;
+      padding: 0.55rem 0.9rem;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    button.secondary {
+      background: #fff;
+      color: #357;
+    }
+
+    .actions {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    #scene {
+      width: 100%;
+      height: auto;
+      border-radius: 8px;
+      display: block;
+      border: 2px solid #ccc;
+      background: #00ff00;
+    }
+
+    .hint {
+      font-size: 0.88rem;
+      color: #444;
+      margin-top: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>Hour + Rating Animation Creator</h1>
+  <div class="layout">
+    <section class="panel" aria-label="Animation controls">
+      <div class="row">
+        <label for="startHour">Start hour</label>
+        <input id="startHour" type="number" min="0" max="23" value="10" />
+      </div>
+      <div class="row">
+        <label for="endHour">End hour</label>
+        <input id="endHour" type="number" min="0" max="23" value="11" />
+      </div>
+      <div class="row">
+        <label for="duration">Duration (seconds)</label>
+        <input id="duration" type="number" min="1" max="30" value="6" />
+      </div>
+      <div class="row" style="grid-template-columns: 1fr;">
+        <label for="ratings">Ratings (one per line: label,value 0-5)</label>
+        <textarea id="ratings">Quality,4.5
+Speed,3.8
+Comfort,4.2</textarea>
+      </div>
+      <div class="actions">
+        <button id="apply">Apply & Restart</button>
+        <button id="pause" class="secondary">Pause</button>
+      </div>
+      <p class="hint">The render background is pure green (#00FF00) so it can be chroma-keyed out.</p>
+    </section>
+
+    <section class="panel" aria-label="Animation preview">
+      <canvas id="scene" width="1280" height="720" aria-label="Animation with green background"></canvas>
+    </section>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('scene');
+    const ctx = canvas.getContext('2d');
+    const controls = {
+      startHour: document.getElementById('startHour'),
+      endHour: document.getElementById('endHour'),
+      duration: document.getElementById('duration'),
+      ratings: document.getElementById('ratings')
+    };
+
+    let settings = {
+      startHour: 10,
+      endHour: 11,
+      duration: 6,
+      ratings: [
+        { label: 'Quality', value: 4.5 },
+        { label: 'Speed', value: 3.8 },
+        { label: 'Comfort', value: 4.2 }
+      ]
+    };
+
+    let startTime = performance.now();
+    let paused = false;
+
+    function clamp(value, min, max) {
+      return Math.min(max, Math.max(min, value));
+    }
+
+    function parseRatings(text) {
+      const parsed = text
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .map((line) => {
+          const [rawLabel, rawValue] = line.split(',').map((part) => part.trim());
+          return {
+            label: rawLabel || 'Item',
+            value: clamp(Number(rawValue), 0, 5)
+          };
+        })
+        .filter((item) => !Number.isNaN(item.value));
+
+      return parsed.length ? parsed : [{ label: 'Rating', value: 3 }];
+    }
+
+    function applySettings() {
+      settings = {
+        startHour: clamp(parseInt(controls.startHour.value, 10) || 0, 0, 23),
+        endHour: clamp(parseInt(controls.endHour.value, 10) || 0, 0, 23),
+        duration: clamp(parseFloat(controls.duration.value) || 6, 1, 30),
+        ratings: parseRatings(controls.ratings.value)
+      };
+      startTime = performance.now();
+    }
+
+    function formatHour(hour) {
+      const rounded = Math.round(hour) % 24;
+      return `${String(rounded).padStart(2, '0')}:00`;
+    }
+
+    function draw(t) {
+      const elapsed = (t - startTime) / 1000;
+      const progress = (elapsed % settings.duration) / settings.duration;
+      const ease = 0.5 - 0.5 * Math.cos(progress * Math.PI);
+
+      ctx.fillStyle = '#00ff00';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      const currentHour = settings.startHour + (settings.endHour - settings.startHour) * ease;
+
+      ctx.fillStyle = '#101820';
+      ctx.font = 'bold 96px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText(formatHour(currentHour), canvas.width / 2, 180);
+
+      ctx.font = '36px Arial';
+      ctx.fillText('Hour Counter', canvas.width / 2, 250);
+
+      const startX = 220;
+      const barWidth = 840;
+      const rowHeight = 88;
+      const baseY = 350;
+
+      settings.ratings.forEach((rating, index) => {
+        const rowY = baseY + index * rowHeight;
+        const animatedValue = clamp(rating.value * ease, 0, 5);
+
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(startX, rowY, barWidth, 44);
+
+        ctx.fillStyle = '#2f80ed';
+        ctx.fillRect(startX, rowY, (animatedValue / 5) * barWidth, 44);
+
+        ctx.strokeStyle = '#111';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(startX, rowY, barWidth, 44);
+
+        ctx.fillStyle = '#111';
+        ctx.textAlign = 'left';
+        ctx.font = '28px Arial';
+        ctx.fillText(rating.label, startX, rowY - 10);
+
+        ctx.textAlign = 'right';
+        ctx.fillText(animatedValue.toFixed(1), startX + barWidth, rowY - 10);
+      });
+
+      if (!paused) {
+        requestAnimationFrame(draw);
+      }
+    }
+
+    document.getElementById('apply').addEventListener('click', () => {
+      applySettings();
+      paused = false;
+      requestAnimationFrame(draw);
+    });
+
+    document.getElementById('pause').addEventListener('click', (event) => {
+      paused = !paused;
+      event.currentTarget.textContent = paused ? 'Resume' : 'Pause';
+      if (!paused) {
+        startTime = performance.now();
+        requestAnimationFrame(draw);
+      }
+    });
+
+    applySettings();
+    requestAnimationFrame(draw);
+  </script>
+</body>
+</html>
